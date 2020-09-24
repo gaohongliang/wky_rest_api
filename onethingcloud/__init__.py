@@ -10,7 +10,7 @@ from . import config, utils
 urllib3.disable_warnings()
 
 
-class OneCloudClient:
+class OneThingCloudClient:
     __request_handler = requests.session()
 
     __method_post = 'POST'
@@ -96,7 +96,7 @@ class OneCloudClient:
         str_params = json.dumps(params)
         res = self.__send(config.URL_INIT, self.__method_post, str_params)
         if res['code'] == 0:
-            logging.info('onecloud client init ok.')
+            logging.info('onethingcloud client init ok.')
         else:
             raise Exception('ERR:%s,MSG:%s' % ('1', 'client init failed.'))
 
@@ -210,7 +210,7 @@ class OneCloudClient:
         tasks = task_id + '_' + task_state + '_' + task_type
 
         params = utils.get_params_no_sign(
-            dict(pid=pid, ct='31', clientType='PC-onecloud', ct_ver=config.APP_VERSION, v='1',
+            dict(pid=pid, ct='31', clientType='PC-onethingcloud', ct_ver=config.APP_VERSION, v='1',
                  tasks=tasks, deleteFile=str(delete_file).lower(), recycleTask=str(recycle_task).lower()))
         res = self.__send(config.URL_CONTROL_REMOTE_DEL + params, self.__method_get)
         rtn = res['rtn']
@@ -249,7 +249,7 @@ class OneCloudClient:
         pid = self.__device['peerid']
         url_params = 'v=2&pid=' + pid + '&ct=31&ct_ver=' + config.APP_VERSION
         json_params = json.dumps({
-            'path': '/media/sda/onecloud/tddownload',
+            'path': '/media/sda/onethingcloud/tddownload',
             'tasks': [{
                 'btSub': bt_sub,
                 'cid': '',
