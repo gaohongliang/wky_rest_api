@@ -36,33 +36,39 @@ class OneThingCloudClient:
 
         # 初始化
         self.__init()
+        logging.info('OneThingCloud client init begin.')
 
         # 登陆
         self.__username = username
         self.__password = password
         self.__login(username, password)
+        logging.info('OneThingCloud account login ok.')
 
         # 启动定时器 检查session
         self.__scheduler.add_job(self.__check_session, 'interval', seconds=10, id='JOB_CHECK_SESSION')
 
         # 获取peer信息
         self.__init_peer_info()
+        logging.info('OneThingCloud get device info ok.')
 
         # 启动定时器 获取peer信息
         self.__scheduler.add_job(self.__init_peer_info, 'interval', seconds=60, id='JOB_INIT_PEER_INFO')
 
         # 获取turn server信息
         self.__init_turn_server_info()
+        logging.info('OneThingCloud get turn server info ok.')
 
         # 启动定时器 获取任务列信息
         self.__scheduler.add_job(self.__init_task_info, 'interval', seconds=10, id='JOB_INIT_TASK_LIST')
 
         # 启动定时器
         self.__scheduler.start()
+        logging.info('OneThingCloud client init ok.')
 
     def close(self):
         # 销毁
         self.__scheduler.shutdown(wait=False)
+        logging.info('OneThingCloud client close ok.')
 
     def __send_json(self, url, json_data=''):
         """
