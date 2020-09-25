@@ -7,6 +7,8 @@ import urllib3
 
 from . import config, utils
 
+logging.getLogger('apscheduler').setLevel(logging.ERROR)
+
 # 去掉https 请求警告日志
 urllib3.disable_warnings()
 
@@ -35,7 +37,7 @@ class Client:
         # }
         self.__request_handler = requests.session()
         self.__request_handler.verify = False
-        self.__task_info = {'recycleNum': '0', 'serverFailNum': '0', 'sync': '0', 'tasks': [], 'dlNum': '0',
+        self.__task_info = {'recycleNum': '0', 'serverFailNum': '0', 'sync': '0', 'dlNum': '0',
                             'completeNum': '0'}
 
         self.__scheduler = BackgroundScheduler()
@@ -136,9 +138,7 @@ class Client:
         str_params = json.dumps(params)
         res = self.__send(config.URL_INIT, self.__method_post, str_params)
         logging.debug('init\nparams:%s\nresult:%s' % (params, res))
-        if res['code'] == 0:
-            logging.info('onethingcloud client init ok.')
-        else:
+        if res['code'] != 0:
             raise Exception('ERR:%s,MSG:%s' % ('1', 'client init failed.'))
 
     def __login(self, username, password):
@@ -289,14 +289,13 @@ class Client:
         """
         self.__check_device_online()
         pid = self.__device['peerid']
-        params = utils.get_body(v='2', pid=pid, ct='31', ct_ver=config.APP_VERSION, pos='0',
-                                number='0', type='4', needUrl='100')
-        res = self.__send(config.URL_CONTROL_REMOTE_LIST, self.__method_post, params)
+        params = utils.get_params_no_sign(dict(v='2', pid=pid, ct='31', ct_ver=config.APP_VERSION, pos='0',
+                                               number='100', type='4', needUrl='0'))
+        res = self.__send(config.URL_CONTROL_REMOTE_LIST + params, self.__method_get)
         logging.debug('get_cloud_task_list\nparams:%s\nresult:%s' % (params, res))
         rtn = res['rtn']
         if rtn == 0:
-            self.__task_info['tasks'] = res['tasks']
-            return self.__task_info
+            return res['tasks']
         else:
             raise Exception('ERR:%s,MSG:%s' % (res['rtn'], res['msg']))
 
