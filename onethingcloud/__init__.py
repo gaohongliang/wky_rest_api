@@ -7,6 +7,7 @@ import urllib3
 
 from . import config, utils
 
+# 去掉https 请求警告日志
 urllib3.disable_warnings()
 
 
@@ -19,12 +20,13 @@ class OneThingCloudClient:
     __username = ''
     __password = ''
     __user_info = {}
-    __device = False
-    __turn_server_1 = False
-    __turn_server_2 = False
+    __device = None
+    __turn_server_1 = None
+    __turn_server_2 = None
 
     __task_info = {'recycleNum': '0', 'serverFailNum': '0', 'sync': '0', 'tasks': [], 'dlNum': '0', 'completeNum': '0'}
 
+    # 定时器
     __scheduler = BackgroundScheduler()
 
     def __init__(self, username, password):
@@ -157,6 +159,10 @@ class OneThingCloudClient:
             # 如果检查失败重新登陆下
             self.__login(self.__username, self.__password)
 
+    def __check_device_online(self):
+        if self.__device is None:
+            raise Exception('ERR:%s,MSG:%s' % ('-1', 'device info not init or device offline.'))
+
     def __init_peer_info(self):
         """
         获取设备信息
@@ -172,6 +178,8 @@ class OneThingCloudClient:
             device_size = len(devices)
             if device_size > 0:
                 self.__device = devices[0]
+            else:
+                self.__device = None
         else:
             raise Exception('ERR:%s,MSG:%s' % (rtn, res['msg']))
 
@@ -180,9 +188,7 @@ class OneThingCloudClient:
         获取内网穿透地址
         :return:
         """
-        if not self.__device:
-            logging.error("device info not init or device offline.")
-            return None
+        self.__check_device_online()
 
         device_sn = self.__device['device_sn']
         params = utils.get_params(dict(appversion=config.APP_VERSION, ct='5', sn=device_sn, v='3'),
@@ -209,6 +215,8 @@ class OneThingCloudClient:
         初始化任务信息
         :return:
         """
+        self.__check_device_online()
+
         pid = self.__device['peerid']
         params = utils.get_params_no_sign(dict(v='2', pid=pid, ct='31', ct_ver=config.APP_VERSION, pos='0',
                                                number='0', type='4', needUrl='0'))
@@ -236,6 +244,7 @@ class OneThingCloudClient:
         获取设备信息
         :return:
         """
+        self.__check_device_online()
         return self.__device
 
     def get_turn_server_info(self):
@@ -243,6 +252,7 @@ class OneThingCloudClient:
         获取内网穿透服务信息
         :return:
         """
+        self.__check_device_online()
         return self.__turn_server_1, self.__turn_server_2
 
     def get_task_info(self):
@@ -250,6 +260,7 @@ class OneThingCloudClient:
         获取任务信息
         :return:
         """
+        self.__check_device_online()
         return self.__task_info
 
     def get_cloud_task_list(self):
@@ -257,6 +268,7 @@ class OneThingCloudClient:
         获取云添加任务列表
         :return:
         """
+        self.__check_device_online()
         pid = self.__device['peerid']
         params = utils.get_body(v='2', pid=pid, ct='31', ct_ver=config.APP_VERSION, pos='0',
                                 number='0', type='4', needUrl='100')
@@ -279,6 +291,7 @@ class OneThingCloudClient:
         :param recycle_task:
         :return:
         """
+        self.__check_device_online()
         pid = self.__device['peerid']
         tasks = task_id + '_' + task_state + '_' + task_type
 
@@ -300,6 +313,7 @@ class OneThingCloudClient:
         :param url:
         :return:
         """
+        self.__check_device_online()
         pid = self.__device['peerid']
         url_params = 'v=2&pid=' + pid + '&ct=31&ct_ver=' + config.APP_VERSION
         json_params = json.dumps({'url': url})
@@ -323,6 +337,7 @@ class OneThingCloudClient:
         :param bt_sub:
         :return:
         """
+        self.__check_device_online()
         if bt_sub is None:
             bt_sub = []
         pid = self.__device['peerid']
@@ -349,6 +364,29 @@ class OneThingCloudClient:
         else:
             raise Exception('ERR:%s,MSG:%s' % (res['rtn'], res['msg']))
 
+    def __opt_task(self, opt_url, task_id, task_state, task_type):
+        """
+        任务操作
+        :param opt_url:
+        :param task_id:
+        :param task_state:
+        :param task_type:
+        :return:
+        """
+        self.__check_device_online()
+        pid = self.__device['peerid']
+        tasks = task_id + '_' + task_state + '_' + task_type
+
+        params = utils.get_params_no_sign(
+            dict(pid=pid, ct='31', clientType='PC-onecloud', ct_ver=config.APP_VERSION, v='1', tasks=tasks))
+        res = self.__send(opt_url + params, self.__method_get)
+        logging.debug('del_cloud_task\nparams:%s\nresult:%s' % (params, res))
+        rtn = res['rtn']
+        if rtn == 0:
+            return True
+        else:
+            raise Exception('ERR:%s,MSG:%s' % (res['rtn'], res['msg']))
+
     def pause_task(self, task_id, task_state, task_type):
         """
         暂停任务
@@ -357,18 +395,7 @@ class OneThingCloudClient:
         :param task_type:
         :return:
         """
-        pid = self.__device['peerid']
-        tasks = task_id + '_' + task_state + '_' + task_type
-
-        params = utils.get_params_no_sign(
-            dict(pid=pid, ct='31', clientType='PC-onecloud', ct_ver=config.APP_VERSION, v='1', tasks=tasks))
-        res = self.__send(config.URL_CONTROL_REMOTE_PAUSE + params, self.__method_get)
-        logging.debug('del_cloud_task\nparams:%s\nresult:%s' % (params, res))
-        rtn = res['rtn']
-        if rtn == 0:
-            return True
-        else:
-            raise Exception('ERR:%s,MSG:%s' % (res['rtn'], res['msg']))
+        return self.__opt_task(config.URL_CONTROL_REMOTE_PAUSE, task_id, task_state, task_type)
 
     def start_task(self, task_id, task_state, task_type):
         """
@@ -378,18 +405,7 @@ class OneThingCloudClient:
         :param task_type:
         :return:
         """
-        pid = self.__device['peerid']
-        tasks = task_id + '_' + task_state + '_' + task_type
-
-        params = utils.get_params_no_sign(
-            dict(pid=pid, ct='31', clientType='PC-onecloud', ct_ver=config.APP_VERSION, v='1', tasks=tasks))
-        res = self.__send(config.URL_CONTROL_REMOTE_START + params, self.__method_get)
-        logging.debug('del_cloud_task\nparams:%s\nresult:%s' % (params, res))
-        rtn = res['rtn']
-        if rtn == 0:
-            return True
-        else:
-            raise Exception('ERR:%s,MSG:%s' % (res['rtn'], res['msg']))
+        return self.__opt_task(config.URL_CONTROL_REMOTE_START, task_id, task_state, task_type)
 
     def create_download_task(self, url):
         """
@@ -397,6 +413,8 @@ class OneThingCloudClient:
         :param url:
         :return:
         """
+        self.__check_device_online()
+
         task_info = self.url_resolve(url)
         task_url = task_info['url']
         # 1 普通下载文件 ftp http 电驴 2 磁力链接 bt 迅雷链接
