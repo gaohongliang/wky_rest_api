@@ -48,12 +48,14 @@ def get_task_list():
 @app.route('/urlResolve', methods=['POST'])
 def url_resolve():
     url = request.form.get('url')
+    check_args('url', url)
     return resp(client.url_resolve(url))
 
 
 @app.route('/taskCreate', methods=['POST'])
 def create_task():
     url = request.form.get('url')
+    check_args('url', url)
     client.create_download_task(url)
     return resp()
 
@@ -61,8 +63,11 @@ def create_task():
 @app.route('/taskDel', methods=['POST'])
 def del_task():
     task_id = request.form.get('id')
+    check_args('id', task_id)
     task_state = request.form.get('state')
+    check_args('state', task_state)
     task_type = request.form.get('type')
+    check_args('type', task_type)
     delete_file = True if request.form.get('delete_file') == '1' else False
     client.del_cloud_task(task_id, task_state, task_type, delete_file, False)
     return resp()
@@ -71,8 +76,11 @@ def del_task():
 @app.route('/taskStart', methods=['POST'])
 def start_task():
     task_id = request.form.get('id')
+    check_args('id', task_id)
     task_state = request.form.get('state')
+    check_args('state', task_state)
     task_type = request.form.get('type')
+    check_args('type', task_type)
     client.start_task(task_id, task_state, task_type)
     return resp()
 
@@ -80,10 +88,18 @@ def start_task():
 @app.route('/taskPause', methods=['POST'])
 def pause_task():
     task_id = request.form.get('id')
+    check_args('id', task_id)
     task_state = request.form.get('state')
+    check_args('state', task_state)
     task_type = request.form.get('type')
+    check_args('type', task_type)
     client.pause_task(task_id, task_state, task_type)
     return resp()
+
+
+def check_args(key, value):
+    if value is None or '' == value:
+        raise Exception('ERR:-1,MSG:%s could not be blank!' % key)
 
 
 if __name__ == '__main__':
