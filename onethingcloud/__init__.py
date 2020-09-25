@@ -160,7 +160,11 @@ class OneThingCloudClient:
             self.__login(self.__username, self.__password)
 
     def __check_device_online(self):
-        if self.__device is None:
+        """
+        判断设备状态
+        :return:
+        """
+        if self.__device is None or self.__device['status'] != 'online':
             raise Exception('ERR:%s,MSG:%s' % ('-1', 'device info not init or device offline.'))
 
     def __init_peer_info(self):
