@@ -11,30 +11,34 @@ from . import config, utils
 urllib3.disable_warnings()
 
 
-class OneThingCloudClient:
-    __request_handler = requests.session()
-
+class Client:
     __method_post = 'POST'
     __method_get = 'GET'
 
-    __username = ''
-    __password = ''
-    __user_info = {}
+    __request_handler = None
+
+    __username = None
+    __password = None
+    __user_info = None
     __device = None
     __turn_server_1 = None
     __turn_server_2 = None
-
-    __task_info = {'recycleNum': '0', 'serverFailNum': '0', 'sync': '0', 'tasks': [], 'dlNum': '0', 'completeNum': '0'}
+    __task_info = None
 
     # 定时器
-    __scheduler = BackgroundScheduler()
+    __scheduler = None
 
     def __init__(self, username, password):
         # self.__request_handler.headers = {
         #     'User-Agent': "Mozilla/5.0",
         #     "cache-control": "no-cache"
         # }
+        self.__request_handler = requests.session()
         self.__request_handler.verify = False
+        self.__task_info = {'recycleNum': '0', 'serverFailNum': '0', 'sync': '0', 'tasks': [], 'dlNum': '0',
+                            'completeNum': '0'}
+
+        self.__scheduler = BackgroundScheduler()
 
         # 初始化
         self.__init()
@@ -50,18 +54,18 @@ class OneThingCloudClient:
         self.__scheduler.add_job(self.__check_session, 'interval', seconds=10, id='JOB_CHECK_SESSION')
 
         # 获取peer信息
-        self.__init_peer_info()
+        self.__refresh_peer_info()
         logging.info('OneThingCloud get device info ok.')
 
         # 启动定时器 获取peer信息
-        self.__scheduler.add_job(self.__init_peer_info, 'interval', seconds=60, id='JOB_INIT_PEER_INFO')
+        self.__scheduler.add_job(self.__refresh_peer_info, 'interval', seconds=60, id='JOB_REFRESH_PEER_INFO')
 
         # 获取turn server信息
-        self.__init_turn_server_info()
+        self.__refresh_turn_server_info()
         logging.info('OneThingCloud get turn server info ok.')
 
         # 启动定时器 获取任务列信息
-        self.__scheduler.add_job(self.__init_task_info, 'interval', seconds=10, id='JOB_INIT_TASK_LIST')
+        self.__scheduler.add_job(self.__refresh_task_info, 'interval', seconds=10, id='JOB_REFRESH_TASK_LIST')
 
         # 启动定时器
         self.__scheduler.start()
@@ -70,6 +74,17 @@ class OneThingCloudClient:
     def close(self):
         # 销毁
         self.__scheduler.shutdown(wait=False)
+
+        self.__request_handler = None
+        self.__username = None
+        self.__password = None
+        self.__user_info = None
+        self.__device = None
+        self.__turn_server_1 = None
+        self.__turn_server_2 = None
+        self.__task_info = None
+        # 定时器
+        self.__scheduler = None
         logging.info('OneThingCloud client close ok.')
 
     def __send_json(self, url, json_data=''):
@@ -167,7 +182,7 @@ class OneThingCloudClient:
         if self.__device is None or self.__device['status'] != 'online':
             raise Exception('ERR:%s,MSG:%s' % ('-1', 'device info not init or device offline.'))
 
-    def __init_peer_info(self):
+    def __refresh_peer_info(self):
         """
         获取设备信息
         :return:
@@ -175,7 +190,7 @@ class OneThingCloudClient:
         params = utils.get_params(dict(appversion=config.APP_VERSION, ct='5', v='8'), self.__user_info['sessionid'],
                                   True)
         res = self.__send(config.URL_LIST_PEER + params, self.__method_get)
-        logging.debug('init_peer_info\nparams:%s\nresult:%s' % (params, res))
+        logging.debug('refresh_peer_info\nparams:%s\nresult:%s' % (params, res))
         rtn = res['rtn']
         if rtn == 0:
             devices = res['result'][1]['devices']
@@ -187,7 +202,7 @@ class OneThingCloudClient:
         else:
             raise Exception('ERR:%s,MSG:%s' % (rtn, res['msg']))
 
-    def __init_turn_server_info(self):
+    def __refresh_turn_server_info(self):
         """
         获取内网穿透地址
         :return:
@@ -199,7 +214,7 @@ class OneThingCloudClient:
                                   self.__user_info['sessionid'],
                                   True)
         res = self.__send(config.URL_GET_TURN_SERVER + params, self.__method_get)
-        logging.debug('init_turn_server_info1\nparams:%s\nresult:%s' % (params, res))
+        logging.debug('refresh_turn_server_info1\nparams:%s\nresult:%s' % (params, res))
         rtn = res['rtn']
         if rtn == 0:
             self.__turn_server_1 = res['turn_server_addr']
@@ -207,14 +222,14 @@ class OneThingCloudClient:
             raise Exception('ERR:%s,MSG:%s' % (rtn, res['msg']))
 
         res2 = self.__send(config.URL_GET_TURN_SERVER + params, self.__method_get)
-        logging.debug('init_turn_server_info2\nparams:%s\nresult:%s' % (params, res))
+        logging.debug('refresh_turn_server_info2\nparams:%s\nresult:%s' % (params, res))
         rtn2 = res2['rtn']
         if rtn2 == 0:
             self.__turn_server_2 = res2['turn_server_addr']
         else:
             raise Exception('ERR:%s,MSG:%s' % (rtn2, res2['msg']))
 
-    def __init_task_info(self):
+    def __refresh_task_info(self):
         """
         初始化任务信息
         :return:
@@ -225,7 +240,7 @@ class OneThingCloudClient:
         params = utils.get_params_no_sign(dict(v='2', pid=pid, ct='31', ct_ver=config.APP_VERSION, pos='0',
                                                number='0', type='4', needUrl='0'))
         res = self.__send(config.URL_CONTROL_REMOTE_LIST + params, self.__method_get)
-        logging.debug('init_task_info\nparams:%s\nresult:%s' % (params, res))
+        logging.debug('refresh_task_info\nparams:%s\nresult:%s' % (params, res))
         rtn = res['rtn']
         if rtn == 0:
             self.__task_info['recycleNum'] = res['recycleNum']
